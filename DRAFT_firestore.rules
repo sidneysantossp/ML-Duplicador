@@ -1,0 +1,84 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 3. Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // 2. Validation Blueprints
+    function isValidUser(data) {
+      return data.keys().hasAll(['id', 'name', 'email', 'plan', 'status']) &&
+             data.keys().size() <= 12 &&
+             data.id == request.auth.uid &&
+             data.email is string && data.email.size() <= 256 &&
+             data.name is string && data.name.size() <= 100 &&
+             data.plan in ['starter', 'pro', 'enterprise'] &&
+             data.status in ['active', 'past_due', 'canceled'];
+    }
+
+    function isValidStore(data) {
+      return data.keys().hasAll(['id', 'userId', 'name', 'status']) &&
+             data.userId == request.auth.uid &&
+             data.name is string && data.name.size() <= 100 &&
+             data.status in ['active', 'error'];
+    }
+
+    function isValidJob(data) {
+      return data.keys().hasAll(['id', 'userId', 'status', 'createdAt']) &&
+             data.userId == request.auth.uid &&
+             data.status in ['pending', 'processing', 'completed', 'failed'] &&
+             data.createdAt == request.time;
+    }
+
+    // --- COLLECTIONS ---
+
+    // USERS
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) &&
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'lastActive']);
+      allow update: if isAdmin();
+    }
+
+    // STORES (Subcollection of Users)
+    match /users/{userId}/stores/{storeId} {
+      allow list, get: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidStore(request.resource.data) && isValidId(storeId);
+      allow update: if isOwner(userId) && isValidStore(request.resource.data) &&
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'status', 'refreshToken', 'expiresAt']);
+      allow delete: if isOwner(userId);
+    }
+
+    // JOBS (Subcollection of Users)
+    match /users/{userId}/jobs/{jobId} {
+      allow list, get: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidJob(request.resource.data) && isValidId(jobId);
+      allow update: if isOwner(userId) && 
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'progress']);
+    }
+
+    // ADMINS ROOT (Read only by admins, write denied to all)
+    match /admins/{adminId} {
+      allow read: if isSignedIn() && request.auth.uid == adminId;
+    }
+  }
+}

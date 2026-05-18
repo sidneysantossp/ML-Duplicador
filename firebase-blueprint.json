@@ -1,0 +1,93 @@
+{
+  "entities": {
+    "User": {
+      "title": "Usuário",
+      "description": "Perfil do cliente do SaaS",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "plan": { "type": "string", "enum": ["starter", "pro", "enterprise"] },
+        "status": { "type": "string", "enum": ["active", "past_due", "canceled"] },
+        "mrr": { "type": "number" },
+        "storesCount": { "type": "number" },
+        "duplicationsCount": { "type": "number" },
+        "joinedAt": { "type": "string", "format": "date-time" },
+        "lastActive": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "email", "plan", "status"]
+    },
+    "Store": {
+      "title": "Loja Mercado Livre",
+      "description": "Conta conectada do Mercado Livre",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "error"] },
+        "accessToken": { "type": "string" },
+        "refreshToken": { "type": "string" },
+        "expiresAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "name", "status"]
+    },
+    "DuplicationJob": {
+      "title": "Trabalho de Duplicação",
+      "description": "Fila de processamento de anúncios",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "source_item_id": { "type": "string" },
+        "source_title": { "type": "string" },
+        "target_account": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "processing", "completed", "failed"] },
+        "progress": { "type": "number" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "completed_at": { "type": "string", "format": "date-time" },
+        "new_item_id": { "type": "string" },
+        "error": { "type": "string" },
+        "server_timestamp": { "type": "object" }
+      },
+      "required": ["status", "created_at"]
+    },
+    "DraftProduct": {
+      "title": "Produto em Rascunho",
+      "description": "Produtos identificados pelo Agente prontos para otimização",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "price": { "type": "number" },
+        "cost": { "type": "number" },
+        "margin": { "type": "number" },
+        "description": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "category": { "type": "string" },
+        "status": { "type": "string", "enum": ["draft", "optimized", "published"] },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "price", "status", "created_at"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Dados do perfil do usuário"
+    },
+    "/users/{userId}/stores/{storeId}": {
+      "schema": "Store",
+      "description": "Contas ML vinculadas ao usuário"
+    },
+    "/users/{userId}/jobs/{jobId}": {
+      "schema": "DuplicationJob",
+      "description": "Histórico de duplicações do usuário"
+    },
+    "/users/{userId}/drafts/{draftId}": {
+      "schema": "DraftProduct",
+      "description": "Fila de cadastro e otimização"
+    }
+  }
+}

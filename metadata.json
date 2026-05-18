@@ -1,0 +1,11 @@
+{
+  "name": "ML Duplicator PRO",
+  "description": "Plataforma inteligente de gestão operacional, duplicação e escala para vendedores do Mercado Livre com IA integrada.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "IA para enriquecimento de anúncios",
+    "Gestão multi-conta Mercado Livre",
+    "Dashboard Admin SaaS completo",
+    "Automação de perguntas e mensagens"
+  ]
+}

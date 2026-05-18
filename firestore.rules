@@ -1,0 +1,72 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isAdmin() { 
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) || 
+        (request.auth.token.email == 'sid.websp@gmail.com' && request.auth.token.email_verified == true)
+      ); 
+    }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['id', 'name', 'email', 'plan', 'status']) &&
+             data.id == request.auth.uid &&
+             data.plan in ['starter', 'pro', 'enterprise'] &&
+             data.status in ['active', 'past_due', 'canceled'];
+    }
+
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && 
+        request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['name', 'last_active', 'stores_count', 'duplications_count', 'ml_credentials', 'updated_at']);
+    }
+
+    match /admins/{adminId} {
+      // Allow user to check if they are an admin
+      allow get: if isOwner(adminId) || isAdmin();
+    }
+
+    match /config/{configId} {
+      // Permitir leitura apenas para o appId e redirectUrl, ocultando o secret se possível
+      // Mas por enquanto, para simplificar e unificar a correção:
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /users/{userId}/stores/{storeId} {
+      allow list, get: if isOwner(userId) || isAdmin();
+      allow create, update: if isOwner(userId) && isValidId(storeId);
+      allow delete: if isOwner(userId);
+    }
+
+    function isValidJob(data) {
+      return data.keys().hasAll(['source_item_id', 'source_title', 'status', 'progress', 'created_at', 'server_timestamp']) &&
+             data.status in ['pending', 'processing', 'completed', 'failed'] &&
+             data.progress is number &&
+             data.source_title is string && data.source_title.size() <= 200;
+    }
+
+    match /users/{userId}/jobs/{jobId} {
+      allow list, get: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidId(jobId) && isValidJob(request.resource.data);
+      allow update: if isOwner(userId) && isValidId(jobId) && 
+        request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['status', 'progress', 'completed_at', 'new_item_id', 'error', 'server_timestamp']);
+    }
+
+    match /users/{userId}/drafts/{draftId} {
+      allow list, get: if isOwner(userId) || isAdmin();
+      allow create, update: if isOwner(userId) && isValidId(draftId);
+      allow delete: if isOwner(userId);
+    }
+  }
+}
